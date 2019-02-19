@@ -1,0 +1,63 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 919d91dc58eb46384f7b85f2d64b4e34ab980c7f630b9318f8c3608bd558d254
+
+name:           robko01
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/robko01#readme>
+homepage:       https://github.com/githubuser/robko01#readme
+bug-reports:    https://github.com/githubuser/robko01/issues
+author:         Vassil Keremidchiev
+maintainer:     varosi@gmail.com
+copyright:      2019 Vassil Keremidchiev
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/robko01
+
+library
+  exposed-modules:
+      Lib
+  other-modules:
+      Paths_robko01
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5,
+      serialport >= 0.4.7 && <0.5.0
+  default-language: Haskell2010
+
+executable robko01-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_robko01
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , robko01
+  default-language: Haskell2010
+
+test-suite robko01-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_robko01
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , robko01
+  default-language: Haskell2010
