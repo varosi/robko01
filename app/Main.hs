@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import System.Hardware.Robko01
 
 main :: IO ()
-main = someFunc
+main = doSomething

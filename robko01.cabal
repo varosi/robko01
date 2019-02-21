@@ -8,12 +8,13 @@ cabal-version: 1.12
 
 name:           robko01
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/robko01#readme>
-homepage:       https://github.com/githubuser/robko01#readme
-bug-reports:    https://github.com/githubuser/robko01/issues
+description:    Please see the README on GitHub at <https://github.com/varosi/robko01#readme>
+homepage:       https://github.com/varosi/robko01#readme
+bug-reports:    https://github.com/varosi/robko01/issues
 author:         Vassil Keremidchiev
 maintainer:     varosi@gmail.com
 copyright:      2019 Vassil Keremidchiev
+category:       Educational
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -23,11 +24,11 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/robko01
+  location: https://github.com/varosi/robko01
 
 library
   exposed-modules:
-      Lib
+      System.Hardware.Robko01
   other-modules:
       Paths_robko01
   hs-source-dirs:
@@ -35,7 +36,8 @@ library
   build-depends:
       base >=4.7 && <5,
       serialport >= 0.4.7 && <0.5.0,
-      bytestring
+      bytestring,
+      attoparsec
   default-language: Haskell2010
 
 executable robko01-exe
