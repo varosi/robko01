@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module System.Hardware.Robko01( Joint(..), JointSteps(..), initRobko, doSomething, getJointSteps ) where
+module System.Hardware.Robko01( 
+            Joint(..), JointSteps(..), 
+            initRobko, doSomething, 
+            resetAndStop, getJointSteps, getInputStatus ) where
 
 import Data.List.NonEmpty
 import qualified Data.ByteString.Char8 as B
@@ -46,7 +49,17 @@ cmdRobko' s deviceId cmd arg0 arg1 arg2 arg3 = do
     threadDelay cmdTime
     recv s 255
 
--- Get status of inputs
+-- | Reset and Stop moving
+resetAndStop :: SerialPort -> Int -> IO ()
+resetAndStop s deviceId = do
+    response <- cmdRobko' s deviceId 0 0 0 0 0 
+    
+    let result = parseOnly parseStatus response
+        parseStatus = string ":01000000000000"
+
+    either fail (\ _ -> return ()) result
+
+-- | Get status of inputs
 getInputStatus :: SerialPort -> Int -> IO Int
 getInputStatus s deviceId = do
     response <- cmdRobko' s deviceId 2 0 0 0 0 
@@ -59,11 +72,10 @@ getInputStatus s deviceId = do
 
     either fail return result
 
--- Get status of joint
+-- | Get status of joint
 getJointSteps :: SerialPort -> Int -> Joint -> IO JointSteps
 getJointSteps s deviceId joint = do
     response <- cmdRobko' s deviceId 8 (fromEnum joint) 0 0 0 
-    print response
     
     let result = parseOnly (parseStatus (fromEnum joint)) response
         parseStatus joint = do
@@ -75,6 +87,7 @@ getJointSteps s deviceId joint = do
 
     either fail return result
 
+-- | Test function
 doSomething = withSerial port portSettings $ \s -> do
     initRobko s
 
