@@ -1,10 +1,10 @@
 name:                robko01
 version:             0.1.0.0
-github:              "githubuser/robko01"
+github:              "varosi/robko01"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2019 Author name here"
+author:              "Vassil Keremidchiev"
+maintainer:          "varosi@gmail.com"
+copyright:           "2019 Vassil Keremidchiev"
 
 extra-source-files:
 - README.md
@@ -20,7 +20,10 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/githubuser/robko01#readme>
 
 dependencies:
-- base >= 4.7 && < 5
+- base >=4.7 && <5
+- serialport >= 0.4.7 && <0.5.0
+- bytestring
+- attoparsec
 
 library:
   source-dirs: src
