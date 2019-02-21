@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module Lib( Joint(..), JointSteps(..), initRobko, doSomething, getJointSteps ) where
+module System.Hardware.Robko01( Joint(..), JointSteps(..), initRobko, doSomething, getJointSteps ) where
 
 import Data.List.NonEmpty
 import qualified Data.ByteString.Char8 as B
