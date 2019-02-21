@@ -13,7 +13,7 @@ import Data.Attoparsec.ByteString
 import Data.Attoparsec.ByteString.Char8         (char, digit)
 import Control.Applicative
 
-data Joint = Motor0 | Motor1 | Motor2 | Motor3 | Motor4 | Motor5 | Aux0 | Aux1 
+data Joint = MotorBase | Motor1 | Motor2 | Motor3 | Motor4 | Motor5 | Aux0 | Aux1 
     deriving (Show, Enum)
 
 data DriveDir  = Down | Up           deriving (Show, Enum)
@@ -43,12 +43,9 @@ initRobko s = do
     let isReady = B.isPrefixOf "!!! Controller is ready !!!" helloRobko && B.isSuffixOf "Valentin Nikolov, val_niko@yahoo.com\r\n" helloRobko
     putStrLn $ if isReady then "Robko 01 is READY!" else "Robko 01 is NOT READY!"
 
-cmdStr :: Int -> Int -> Int -> Int -> Int -> Int -> B.ByteString
-cmdStr deviceId cmd arg0 arg1 arg2 arg3 = B.pack $ printf ":%02d%02d%d%d%04d%04d\r\n" deviceId cmd arg0 arg1 arg2 arg3
-
-cmdRobko' :: SerialPort -> Int -> Int -> Int -> Int -> Int -> Int -> IO (B.ByteString, B.ByteString)
-cmdRobko' s deviceId cmd arg0 arg1 arg2 arg3 = do    
-    let str = cmdStr deviceId cmd arg0 arg1 arg2 arg3 
+cmdRobko :: SerialPort -> Int -> Int -> Int -> Int -> Int -> Int -> IO (B.ByteString, B.ByteString)
+cmdRobko s deviceId cmd arg0 arg1 arg2 arg3 = do    
+    let str = B.pack $ printf ":%02d%02d%d%d%04d%04d\r\n" deviceId cmd arg0 arg1 arg2 arg3
     send s str
     flush s
     threadDelay cmdTime
@@ -58,7 +55,7 @@ cmdRobko' s deviceId cmd arg0 arg1 arg2 arg3 = do
 -- | Reset and Stop moving
 resetAndStop :: SerialPort -> Int -> IO ()
 resetAndStop s deviceId = do
-    (response, shouldBe) <- cmdRobko' s deviceId 0 0 0 0 0 
+    (response, shouldBe) <- cmdRobko s deviceId 0 0 0 0 0 
     
     let result = parseOnly parseStatus response
         parseStatus = string shouldBe
@@ -68,7 +65,7 @@ resetAndStop s deviceId = do
 -- | Start of movement. Stopping is done by resetAndStop
 start :: SerialPort -> Int -> Joint -> DriveDir -> DriveMode -> Int -> IO ()
 start s deviceId joint dir mode speed = do
-    (response, shouldBe) <- cmdRobko' s deviceId 1 (fromEnum joint) (fromEnum dir) (1 + fromEnum mode) speed 
+    (response, shouldBe) <- cmdRobko s deviceId 1 (fromEnum joint) (fromEnum dir) (1 + fromEnum mode) speed 
 
     let result = parseOnly parseStatus response
         parseStatus = string shouldBe
@@ -78,7 +75,7 @@ start s deviceId joint dir mode speed = do
 -- | Get status of inputs
 getInputStatus :: SerialPort -> Int -> IO Int
 getInputStatus s deviceId = do
-    (response, _) <- cmdRobko' s deviceId 2 0 0 0 0 
+    (response, _) <- cmdRobko s deviceId 2 0 0 0 0 
     
     let result = parseOnly parseStatus response
         parseStatus = do
@@ -91,7 +88,7 @@ getInputStatus s deviceId = do
 -- | Get status of joint
 getJointSteps :: SerialPort -> Int -> Joint -> IO JointSteps
 getJointSteps s deviceId joint = do
-    (response,_) <- cmdRobko' s deviceId 8 (fromEnum joint) 0 0 0 
+    (response,_) <- cmdRobko s deviceId 8 (fromEnum joint) 0 0 0 
     
     let result = parseOnly (parseStatus (fromEnum joint)) response
         parseStatus joint = do
@@ -107,10 +104,10 @@ getJointSteps s deviceId joint = do
 doSomething = withSerial port portSettings $ \s -> do
     initRobko s
 
-    start s 1 Motor0 Down FullStep 10
+    start s 1 MotorBase Down FullStep 10
     threadDelay 1000000
     resetAndStop s 1
 
-    x <- getJointSteps s 1 Motor0
+    x <- getJointSteps s 1 MotorBase
     -- x <- getInputStatus s 1
     print x
