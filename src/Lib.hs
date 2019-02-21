@@ -1,14 +1,25 @@
-{-# LANGUAGE OverloadedStrings #-}
-module Lib( RobkoCmd(..), initRobko, cmdRobko, doSomething ) where
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+module Lib( Joint(..), JointSteps(..), initRobko, doSomething, getJointSteps ) where
 
+import Data.List.NonEmpty
 import qualified Data.ByteString.Char8 as B
-import Text.Printf (printf)
+import Text.Printf                              (printf)
 import System.Hardware.Serialport
-import Control.Concurrent (threadDelay)
+import Control.Concurrent                       (threadDelay)
+import Data.Attoparsec.ByteString
+import Data.Attoparsec.ByteString.Char8         (char, digit)
+import Control.Applicative
 
--- Robot low-level commands
-data RobkoCmd = GetInputStatus |
-                GetJointSteps Int    -- which joint
+data Joint = Motor0 | Motor1 | Motor2 | Motor3 | Motor4 | Motor5 | Aux0 | Aux1 
+    deriving (Show, Enum)
+
+newtype JointSteps = JointSteps Int 
+    deriving (Show)
+
+parseBit :: Parser Bool
+parseBit = do
+    c <- char '0' <|> char '1'
+    return (c == '1')
 
 -- let port = "COM3"          -- Windows
 -- let port = "/dev/ttyUSB3"  -- Linux
@@ -26,23 +37,47 @@ initRobko s = do
     let isReady = B.isPrefixOf "!!! Controller is ready !!!" helloRobko && B.isSuffixOf "Valentin Nikolov, val_niko@yahoo.com\r\n" helloRobko
     putStrLn $ if isReady then "Robko 01 is READY!" else "Robko 01 is NOT READY!"
 
-cmdRobko' :: SerialPort -> Int -> Int -> Int -> Int -> Int -> Int -> IO ()
+cmdRobko' :: SerialPort -> Int -> Int -> Int -> Int -> Int -> Int -> IO B.ByteString
 cmdRobko' s deviceId cmd arg0 arg1 arg2 arg3 = do    
     let cmd' = printf ":%02d%02d%d%d%04d%04d\r\n" deviceId cmd arg0 arg1 arg2 arg3
 
     send s $ B.pack cmd'
     flush s
     threadDelay cmdTime
+    recv s 255
 
-    -- this will get command back
-    recv s 255 >>= print
+-- Get status of inputs
+getInputStatus :: SerialPort -> Int -> IO Int
+getInputStatus s deviceId = do
+    response <- cmdRobko' s deviceId 2 0 0 0 0 
+    
+    let result = parseOnly parseStatus response
+        parseStatus = do
+            string ":010200"
+            (x :: Int) <- read <$> count 8 digit    
+            return x
 
--- Initiate controller command
-cmdRobko :: SerialPort -> Int -> RobkoCmd -> IO ()
-cmdRobko s deviceId GetInputStatus        = cmdRobko' s deviceId 2 0 0 0 0
-cmdRobko s deviceId (GetJointSteps joint) = cmdRobko' s deviceId 8 joint 0 0 0
+    either fail return result
+
+-- Get status of joint
+getJointSteps :: SerialPort -> Int -> Joint -> IO JointSteps
+getJointSteps s deviceId joint = do
+    response <- cmdRobko' s deviceId 8 (fromEnum joint) 0 0 0 
+    print response
+    
+    let result = parseOnly (parseStatus (fromEnum joint)) response
+        parseStatus joint = do
+            string ":0108"
+            string . B.pack . show $ joint
+            neg        <- parseBit
+            (x :: Int) <- read <$> count 8 digit    
+            return . JointSteps $ if neg then -x else x
+
+    either fail return result
 
 doSomething = withSerial port portSettings $ \s -> do
     initRobko s
 
-    cmdRobko s 1 $ GetJointSteps 3
+    x <- getJointSteps s 1 Motor2
+    -- x <- getInputStatus s 1
+    print x
