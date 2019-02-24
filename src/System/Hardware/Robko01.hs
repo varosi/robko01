@@ -1,9 +1,10 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, ApplicativeDo #-}
 module System.Hardware.Robko01( 
-            Joint(..), JointSteps(..), 
-            initRobko, doSomething, 
-            resetAndStop, getJointSteps, getInputStatus,
-            cmdString ) where    -- Exported because of tests
+    Robko01,
+    Joint(..), JointSteps(..), 
+    initRobko, doSomething, 
+    resetAndStop, getJointSteps, getInputStatus,
+    cmdString ) where    -- Exported because of tests
 
 import Data.List.NonEmpty
 import qualified Data.ByteString.Char8 as B
@@ -13,6 +14,7 @@ import Control.Concurrent                       (threadDelay)
 import Data.Attoparsec.ByteString
 import Data.Attoparsec.ByteString.Char8         (char, digit)
 import Control.Applicative
+import Control.Monad.IO.Class
 
 data Joint = MotorBase | Motor1 | Motor2 | Motor3 | Motor4 | Motor5 | Aux0 | Aux1 
     deriving (Show, Enum)
@@ -22,6 +24,38 @@ data DriveMode = FullStep | HalfStep deriving (Show, Enum)
 
 newtype JointSteps = JointSteps Int 
     deriving (Show)
+
+-- | Robko01 monad for its commands
+newtype Robko01 a = Robko01 { runRobko' :: SerialPort -> Int -> IO a }
+
+instance Functor Robko01 where
+    fmap f (Robko01 a) = Robko01 (\port deviceId -> do
+        x <- a port deviceId
+        return $ f x)
+
+instance Applicative Robko01 where
+    pure a = Robko01 (\_ _ -> pure a)
+    (Robko01 f) <*> (Robko01 a') = Robko01 (\port deviceId -> do
+        g <- f port deviceId
+        a <- a' port deviceId
+        return $ g a)
+
+instance Monad Robko01 where
+    return   = pure
+    fail   s = Robko01 (\port deviceId -> fail ("Robot #" ++ show deviceId ++ " failed with: " ++ s))
+    first >>= second = do
+        a <- first
+        second a
+
+instance MonadIO Robko01 where
+    liftIO io = Robko01 $ \_ _ -> io
+
+-- | Run Robko01 program
+runRobko :: String -> Int -> Robko01 a -> IO a
+runRobko port deviceId commands = 
+    withSerial port portSettings $ \s -> do
+        initRobko s
+        runRobko' commands s deviceId
 
 parseBit :: Parser Bool
 parseBit = do
@@ -47,19 +81,21 @@ initRobko s = do
 cmdString :: Int -> Int -> Int -> Int -> Int -> Int -> B.ByteString
 cmdString deviceId cmd arg0 arg1 arg2 arg3 = B.pack $ printf ":%02d%02d%d%d%04d%04d\r\n" deviceId cmd arg0 arg1 arg2 arg3
 
-cmdRobko :: SerialPort -> Int -> Int -> Int -> Int -> Int -> Int -> IO (B.ByteString, B.ByteString)
-cmdRobko s deviceId cmd arg0 arg1 arg2 arg3 = do    
+cmdRobko :: Int -> Int -> Int -> Int -> Int -> Robko01 (B.ByteString, B.ByteString)
+cmdRobko cmd arg0 arg1 arg2 arg3 = Robko01 $ \s deviceId -> do    
     let str = cmdString deviceId cmd arg0 arg1 arg2 arg3
-    send s str
-    flush s
-    threadDelay cmdTime
-    actual <- recv s 255
+    actual <- do
+        send s str
+        flush s
+        threadDelay cmdTime
+        recv s 255
+    
     return (actual, str)
 
 -- | Reset and Stop moving
-resetAndStop :: SerialPort -> Int -> IO ()
-resetAndStop s deviceId = do
-    (response, shouldBe) <- cmdRobko s deviceId 0 0 0 0 0 
+resetAndStop :: Robko01 ()
+resetAndStop = do
+    (response, shouldBe) <- cmdRobko 0 0 0 0 0 
     
     let result = parseOnly parseStatus response
         parseStatus = string shouldBe
@@ -67,9 +103,9 @@ resetAndStop s deviceId = do
     either fail (\ _ -> return ()) result
 
 -- | Start of movement. Stopping is done by resetAndStop
-start :: SerialPort -> Int -> Joint -> DriveDir -> DriveMode -> Int -> IO ()
-start s deviceId joint dir mode speed = do
-    (response, shouldBe) <- cmdRobko s deviceId 1 (fromEnum joint) (fromEnum dir) (1 + fromEnum mode) speed 
+start :: Joint -> DriveDir -> DriveMode -> Int -> Robko01 ()
+start joint dir mode speed = do
+    (response, shouldBe) <- cmdRobko 1 (fromEnum joint) (fromEnum dir) (1 + fromEnum mode) speed 
 
     let result = parseOnly parseStatus response
         parseStatus = string shouldBe
@@ -77,9 +113,9 @@ start s deviceId joint dir mode speed = do
     either fail (\ _ -> return ()) result
 
 -- | Get status of inputs
-getInputStatus :: SerialPort -> Int -> IO Int
-getInputStatus s deviceId = do
-    (response, _) <- cmdRobko s deviceId 2 0 0 0 0 
+getInputStatus :: Robko01 Int
+getInputStatus = do
+    (response, _) <- cmdRobko 2 0 0 0 0 
     
     let result = parseOnly parseStatus response
         parseStatus = do
@@ -90,9 +126,9 @@ getInputStatus s deviceId = do
     either fail return result
 
 -- | Get status of joint
-getJointSteps :: SerialPort -> Int -> Joint -> IO JointSteps
-getJointSteps s deviceId joint = do
-    (response,_) <- cmdRobko s deviceId 8 (fromEnum joint) 0 0 0 
+getJointSteps :: Joint -> Robko01 JointSteps
+getJointSteps joint = do
+    (response,_) <- cmdRobko 8 (fromEnum joint) 0 0 0 
     
     let result = parseOnly (parseStatus (fromEnum joint)) response
         parseStatus joint = do
@@ -105,13 +141,11 @@ getJointSteps s deviceId joint = do
     either fail return result
 
 -- | Test function
-doSomething = withSerial port portSettings $ \s -> do
-    initRobko s
+doSomething = runRobko port 1 $ do
+    start MotorBase Down FullStep 10
+    liftIO $ threadDelay 1000000
+    resetAndStop
 
-    start s 1 MotorBase Down FullStep 10
-    threadDelay 1000000
-    resetAndStop s 1
-
-    x <- getJointSteps s 1 MotorBase
-    -- x <- getInputStatus s 1
-    print x
+    x <- getJointSteps MotorBase
+    -- x <- getInputStatus
+    liftIO $ print x
