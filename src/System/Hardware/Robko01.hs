@@ -2,7 +2,8 @@
 module System.Hardware.Robko01( 
             Joint(..), JointSteps(..), 
             initRobko, doSomething, 
-            resetAndStop, getJointSteps, getInputStatus ) where
+            resetAndStop, getJointSteps, getInputStatus,
+            cmdString ) where    -- Exported because of tests
 
 import Data.List.NonEmpty
 import qualified Data.ByteString.Char8 as B
@@ -43,9 +44,12 @@ initRobko s = do
     let isReady = B.isPrefixOf "!!! Controller is ready !!!" helloRobko && B.isSuffixOf "Valentin Nikolov, val_niko@yahoo.com\r\n" helloRobko
     putStrLn $ if isReady then "Robko 01 is READY!" else "Robko 01 is NOT READY!"
 
+cmdString :: Int -> Int -> Int -> Int -> Int -> Int -> B.ByteString
+cmdString deviceId cmd arg0 arg1 arg2 arg3 = B.pack $ printf ":%02d%02d%d%d%04d%04d\r\n" deviceId cmd arg0 arg1 arg2 arg3
+
 cmdRobko :: SerialPort -> Int -> Int -> Int -> Int -> Int -> Int -> IO (B.ByteString, B.ByteString)
 cmdRobko s deviceId cmd arg0 arg1 arg2 arg3 = do    
-    let str = B.pack $ printf ":%02d%02d%d%d%04d%04d\r\n" deviceId cmd arg0 arg1 arg2 arg3
+    let str = cmdString deviceId cmd arg0 arg1 arg2 arg3
     send s str
     flush s
     threadDelay cmdTime

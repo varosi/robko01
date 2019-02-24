@@ -63,4 +63,5 @@ test-suite robko01-test
   build-depends:
       base >=4.7 && <5
     , robko01
+    , hspec
   default-language: Haskell2010
