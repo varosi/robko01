@@ -2,10 +2,8 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module System.Hardware.Robko01(
-    Robko01,
-    Joint(..), JointSteps(..),
-    initRobko, doSomething,
-    resetAndStop, getJointSteps, getInputStatus,
+    Robko01, Joint(..), JointSteps(..), DriveDir(..), DriveMode(..),
+    runRobko, resetAndStop, getJointSteps, getInputStatus, start, port,
     cmdString ) where    -- Exported because of tests
 
 import           Control.Applicative
@@ -141,13 +139,3 @@ getJointSteps joint = do
             return . JointSteps $ if neg then -x else x
 
     either fail return result
-
--- | Test function
-doSomething = runRobko port 1 $ do
-    start MotorBase Down FullStep 10
-    liftIO $ threadDelay 1000000
-    resetAndStop
-
-    x <- getJointSteps MotorBase
-    -- x <- getInputStatus
-    liftIO $ print x
