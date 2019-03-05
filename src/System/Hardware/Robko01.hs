@@ -12,7 +12,7 @@ import           Control.Monad.IO.Class
 import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (char, digit)
 import qualified Data.ByteString.Char8            as B
-import           Data.List.NonEmpty
+import           Control.Exception.Extra          (retry)
 import           System.Hardware.Serialport
 import           Text.Printf                      (printf)
 
@@ -28,32 +28,34 @@ newtype JointSteps = JointSteps Int
 -- | Robko01 monad for its commands
 newtype Robko01 a = Robko01 { runRobko' :: SerialPort -> Int -> IO a }
 
+-- We have do define our own instances for Functor, Applicative and Monad, because we cannot construct purely SerialPort.
 instance Functor Robko01 where
-    fmap f (Robko01 a) = Robko01 (\port deviceId -> do
-        x <- a port deviceId
+    fmap f (Robko01 a) = Robko01 (\p deviceId -> do
+        x <- a p deviceId
         pure $ f x)
 
 instance Applicative Robko01 where
     pure a = Robko01 $ \_ _ -> pure a
-    (Robko01 f) <*> (Robko01 a') = Robko01 (\port deviceId -> do
-        g <- f port deviceId
-        a <- a' port deviceId
+    (Robko01 f) <*> (Robko01 a') = Robko01 (\p deviceId -> do
+        g <- f p deviceId
+        a <- a' p deviceId
         pure $ g a)
 
 instance Monad Robko01 where
     return   = pure
-    fail   s = Robko01 (\port deviceId -> fail ("Robot #" ++ show deviceId ++ " failed with: " ++ s))
-    first >>= second = do
-        a <- first
-        second a
+    fail   s = Robko01 (\_ deviceId -> fail ("Robot #" ++ show deviceId ++ " failed with: " ++ s))
+    (Robko01 x) >>= f = Robko01 $ \p deviceId -> do
+        a <- x p deviceId
+        let Robko01 second = f a
+        second p deviceId
 
 instance MonadIO Robko01 where
     liftIO io = Robko01 $ \_ _ -> io
 
 -- | Run Robko01 program
 runRobko :: String -> Int -> Robko01 a -> IO a
-runRobko port deviceId commands =
-    withSerial port portSettings $ \s -> do
+runRobko p deviceId commands =
+    withSerial p portSettings $ \s -> do
         initRobko s
         runRobko' commands s deviceId
 
@@ -64,16 +66,21 @@ parseBit = do
 
 -- let port = "COM3"          -- Windows
 -- let port = "/dev/ttyUSB3"  -- Linux
+port :: String
 port = "/dev/tty.ROBKO01-RNI-SPP"  -- MacOS
 
+portSettings :: SerialPortSettings
 portSettings = defaultSerialSettings { commSpeed = CS19200, timeout = 50 }
+
+cmdTime :: Int
 cmdTime = 200000 -- 200ms for Robko 01 to
 
 initRobko :: SerialPort -> IO ()
 initRobko s = do
-    -- Wait to init and read initialization
-    threadDelay cmdTime
-    helloRobko <- recv s 255
+    helloRobko <- retry 5 $ do
+        -- Wait to init and read initialization
+        threadDelay cmdTime
+        recv s 255
 
     let isReady = B.isPrefixOf "!!! Controller is ready !!!" helloRobko && B.isSuffixOf "Valentin Nikolov, val_niko@yahoo.com\r\n" helloRobko
     putStrLn $ if isReady then "Robko 01 is READY!" else "Robko 01 is NOT READY!"
@@ -131,9 +138,9 @@ getJointSteps joint = do
     (response,_) <- cmdRobko 8 (fromEnum joint) 0 0 0
 
     let result = parseOnly (parseStatus (fromEnum joint)) response
-        parseStatus joint = do
+        parseStatus j = do
             string ":0108"
-            string . B.pack . show $ joint
+            string . B.pack . show $ j
             neg        <- parseBit
             (x :: Int) <- read <$> count 8 digit
             return . JointSteps $ if neg then -x else x
