@@ -6,10 +6,12 @@ import           System.Hardware.Robko01
 
 main :: IO ()
 main = runRobko port 1 $ do
-    start MotorBase Down FullStep 10
+
+    -- Rotate of robot's base for one second
+    start MotorBase Up FullStep 10
     liftIO $ threadDelay 1000000
     resetAndStop
 
+    -- Print robot's base position
     x <- getJointSteps MotorBase
-    -- x <- getInputStatus
     liftIO $ print x
