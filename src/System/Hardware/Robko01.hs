@@ -16,19 +16,24 @@ import           Control.Exception.Extra          (retry)
 import           System.Hardware.Serialport
 import           Text.Printf                      (printf)
 
+-- | All possible joints
 data Joint = MotorBase | Motor1 | Motor2 | Motor3 | Motor4 | Motor5 | Aux0 | Aux1
     deriving (Show, Enum)
 
+-- | Joints moving directions
 data DriveDir  = Down | Up           deriving (Show, Enum)
+
+-- | Motor step size
 data DriveMode = FullStep | HalfStep deriving (Show, Enum)
 
+-- | Number of motor steps
 newtype JointSteps = JointSteps Int
     deriving (Show)
 
--- | Robko01 monad for its commands
+-- | Robko01 monad for its commands and state
 newtype Robko01 a = Robko01 { runRobko' :: SerialPort -> Int -> IO a }
 
--- We have do define our own instances for Functor, Applicative and Monad, because we cannot construct purely SerialPort.
+-- | We have do define our own instances for Functor, Applicative and Monad, because we cannot construct purely SerialPort.
 instance Functor Robko01 where
     fmap f (Robko01 a) = Robko01 (\p deviceId -> do
         x <- a p deviceId
@@ -64,9 +69,10 @@ parseBit = do
     c <- char '0' <|> char '1'
     return (c == '1')
 
+-- | Default controller's serial port location
+defaultPort :: String
 -- let port = "COM3"          -- Windows
 -- let port = "/dev/ttyUSB3"  -- Linux
-defaultPort :: String
 defaultPort = "/dev/tty.ROBKO01-RNI-SPP"  -- MacOS
 
 portSettings :: SerialPortSettings
@@ -85,6 +91,7 @@ initRobko s = do
     let isReady = B.isPrefixOf "!!! Controller is ready !!!" helloRobko && B.isSuffixOf "Valentin Nikolov, val_niko@yahoo.com\r\n" helloRobko
     putStrLn $ if isReady then "Robko 01 is READY!" else "Robko 01 is NOT READY!"
 
+-- | Exported for testing purposes! It's used for construction of controller commands.
 cmdString :: Int -> Int -> Int -> Int -> Int -> Int -> B.ByteString
 cmdString deviceId cmd arg0 arg1 arg2 arg3 = B.pack $ printf ":%02d%02d%d%d%04d%04d\r\n" deviceId cmd arg0 arg1 arg2 arg3
 
