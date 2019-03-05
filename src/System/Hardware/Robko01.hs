@@ -9,6 +9,7 @@ module System.Hardware.Robko01(
 import           Control.Applicative
 import           Control.Concurrent               (threadDelay)
 import           Control.Monad.IO.Class
+import           Control.Monad                    (unless)
 import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (char, digit)
 import qualified Data.ByteString.Char8            as B
@@ -89,7 +90,7 @@ initRobko s = do
         recv s 255
 
     let isReady = B.isPrefixOf "!!! Controller is ready !!!" helloRobko && B.isSuffixOf "Valentin Nikolov, val_niko@yahoo.com\r\n" helloRobko
-    putStrLn $ if isReady then "Robko 01 is READY!" else "Robko 01 is NOT READY!"
+    unless isReady $ fail "Robko 01 is NOT READY!"
 
 -- | Exported for testing purposes! It's used for construction of controller commands.
 cmdString :: Int -> Int -> Int -> Int -> Int -> Int -> B.ByteString
