@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module System.Hardware.Robko01(
     Robko01, Joint(..), JointSteps(..), DriveDir(..), DriveMode(..),
-    runRobko, resetAndStop, getJointSteps, getInputStatus, start, port,
+    runRobko, resetAndStop, getJointSteps, getInputStatus, start, defaultPort,
     cmdString ) where    -- Exported because of tests
 
 import           Control.Applicative
@@ -66,8 +66,8 @@ parseBit = do
 
 -- let port = "COM3"          -- Windows
 -- let port = "/dev/ttyUSB3"  -- Linux
-port :: String
-port = "/dev/tty.ROBKO01-RNI-SPP"  -- MacOS
+defaultPort :: String
+defaultPort = "/dev/tty.ROBKO01-RNI-SPP"  -- MacOS
 
 portSettings :: SerialPortSettings
 portSettings = defaultSerialSettings { commSpeed = CS19200, timeout = 50 }

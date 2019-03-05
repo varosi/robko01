@@ -5,7 +5,7 @@ import           Control.Monad.IO.Class
 import           System.Hardware.Robko01
 
 main :: IO ()
-main = runRobko port 1 $ do
+main = runRobko defaultPort 1 $ do
 
     -- Rotate of robot's base for one second
     start MotorBase Up FullStep 10
